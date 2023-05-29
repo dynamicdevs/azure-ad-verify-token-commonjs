@@ -1,5 +1,4 @@
-import jwt from 'jsonwebtoken';
-import fetch from 'node-fetch';
+import { decode as jwtDecode, verify as jwtVerify } from 'jsonwebtoken';
 import getPem from 'rsa-pem-from-mod-exp';
 
 import { getItem, setDeferredItem, setItem } from './cache.js';
@@ -11,7 +10,7 @@ import { AzureJwks, VerifyOptions } from './interfaces.js';
  * @param jwksUri Json web key set URI.
  * @param kid Public key to get.
  */
-function getPublicKey(jwksUri: string, kid: string) {
+async function getPublicKey(jwksUri: string, kid: string) {
   let item = getItem(kid);
 
   if (item) {
@@ -19,31 +18,31 @@ function getPublicKey(jwksUri: string, kid: string) {
   }
 
   // immediately defer to prevent duplicate calls to get jwks
-  setDeferredItem(kid);
+  // setDeferredItem(kid);
 
-  return fetch(jwksUri)
-    .then<AzureJwks>((res) => res.json())
-    .then((res) => {
-      res.keys.forEach((key) => {
-        const existing = getItem(key.kid);
-        const pem: string = getPem(key.n, key.e);
+  const response = await fetch(jwksUri).then(
+    (res) => res.json() as Promise<AzureJwks>
+  );
 
-        if (existing && existing.done) {
-          // deferred item
-          existing.done(pem);
-        } else {
-          setItem(key.kid, pem);
-        }
-      });
+  for (const key of response.keys) {
+    const existing = getItem(key.kid);
+    const pem: string = getPem(key.n, key.e);
 
-      item = getItem(kid);
+    if (existing && existing.done) {
+      // deferred item
+      existing.done(pem);
+    } else {
+      setItem(key.kid, pem);
+    }
+  }
 
-      if (!item) {
-        throw new Error('public key not found');
-      }
+  item = getItem(kid);
 
-      return item.result;
-    });
+  if (!item) {
+    throw new Error('public key not found');
+  }
+
+  return item.result;
 }
 
 /**
@@ -59,7 +58,7 @@ export function verify(token: string, options: VerifyOptions) {
   let kid: string;
 
   try {
-    decoded = jwt.decode(token, { complete: true, json: true });
+    decoded = jwtDecode(token, { complete: true, json: true });
     kid = decoded.header.kid;
 
     if (!kid) {
@@ -69,11 +68,11 @@ export function verify(token: string, options: VerifyOptions) {
     return Promise.reject('invalid token');
   }
 
-  return getPublicKey(jwksUri, kid).then((key) =>
-    jwt.verify(token, key, {
+  return getPublicKey(jwksUri, kid).then((key) => {
+    return jwtVerify(token, key, {
       algorithms: ['RS256'],
       audience,
       issuer,
-    })
-  );
+    });
+  });
 }

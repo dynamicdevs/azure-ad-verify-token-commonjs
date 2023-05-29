@@ -1,16 +1,11 @@
 {
+  "extends": "tsconfig/nestjs.json",
   "compilerOptions": {
-    "declaration": true,
+    "resolveJsonModule": true,
     "esModuleInterop": true,
-    "forceConsistentCasingInFileNames": true,
-    "lib": ["es6", "dom"],
-    "module": "ES2020",
-    "moduleResolution": "node",
-    "noImplicitAny": true,
-    "outDir": "dist",
-    "sourceMap": true,
-    "target": "ES2019"
-  },
-  "include": ["src/**/*.ts"],
-  "exclude": ["src/**/*.spec.ts"]
+    "outDir": "./dist",
+    "baseUrl": "./",
+    "experimentalDecorators": true,
+    "isolatedModules": true
+  }
 }
